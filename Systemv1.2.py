@@ -48,13 +48,6 @@ lcd_rows = 2
 gmail_user = 'osuteam40@gmail.com'
 gmail_password = 'Greenhouse40!'
 
-i2c = busio.I2C(board.SCL, board.SDA)
-lcd = character_lcd.Character_LCD_RGB_I2C(i2c, lcd_columns, lcd_rows)
-
-lcd.backlight = False
-
-lcd.clear()
-
 msg1 = "        "
 msg2 = "        "
 msg3 = "        "
@@ -72,7 +65,7 @@ auxpump1 = 25
 solnd1 = 27
 solnd2 = 22
 
-flowPing1= 0
+flowPing1 = 0
 flowPing2 = 0
 #------------------------------------------
 
@@ -149,7 +142,7 @@ def valSet():
     lcd.clear()
 
     variables = ["Delay   ", "PumpTime", "PH Set ", "EC Set"]
-    variableNums = [10, 10, 10, 10]
+    variableNums = [30, 10, 10, 10]
 
     oldmsgOut = " "
 
@@ -328,243 +321,254 @@ def enterError(msg):
     while sysError:
         if lcd.select_button:
             break
-        
-
-#------------------------------------------------------
-if os.path.isfile('./config.txt'):
-    print('Loading Config File')
-    lcd.message = "Loading\nConfig File..."
-    time.sleep(readTime)
-    
-    file = open('./config.txt', 'r+')
-        
-    delay = int(file.readline())
-    pumpOntime = int(file.readline())
-    usrPH = int(file.readline())
-    usrEC = int(file.readline())
-
-    print('Values previously saved:')
-    print('usrPH: %d, Delay: %d, usrEC: %d' %(usrPH, delay, usrEC))
-
-    lcd.message = "Values previosly\nsaved are: "
-    time.sleep(readTime)
-    lcd.clear()
-
-    lcd.message = "PH Set Level: " + str(usrPH) + "\n" + "EC Set Level: " + str(usrEC)
-    time.sleep(readTime)
-    lcd.clear()
-
-    lcd.message = "Pump On Time: " + str(pumpOnTime) + "\n" + "Cycle Delay: " + str(delay)
-    time.sleep(readTime)
-    lcd.clear()
-
-    lcd.message = "Would you like\nto replace them?"
-    time.sleep(readTime)
-    lcd.clear()
-    lcd.message = "Press Up for Yes\nDown for No"
-    time.sleep(readTime)
-
-    while True:
-        if lcd.up_button:
-            ans = "yes"
-            break
-        elif lcd.down_button:
-            ans = "no"
-            break        
-    lcd.clear()
-        
-    if ans in ['yes', 'y']:
-        file = open('./config.txt', 'w+')
-
-        valSet()
-        
-        file.write('%d\n'%delay)
-        file.write('%d\n'%pumpOnTime)
-        file.write('%d\n' %usrPH)
-        file.write('%d\n' %usrEC)  
-        
-        file.close()
-        
-        print('Saving those files../n')
-        lcd.message = "Saving \nthose files..."
-        time.sleep(readTime)
-        lcd.clear()
-
-else:
-    print('config file is not present')
-    print('creating new config file')
-
-    lcd.message = "Config file is\nNot present..."
-    time.sleep(readTime)
-    lcd.clear()
-    lcd.message = "Creating new\nconfig file..."
-    time.sleep(readTime)
-    lcd.clear()
-    
-    file = open('./config.txt','w+')
-
-    valSet()
-    
-    file.write('%d\n' %delay)
-    file.write('%d\n' %pumpOnTime)
-    file.write('%d\n' %usrPH)    
-    file.write('%d\n' %usrEC)
-    
-    file.close()
-
-#----------------------------------------------------------
-# GPIO Setup
-GPIO.setup(flow1, GPIO.IN, pull_up_down=GPIO.PUD_DOWN)
-GPIO.setup(flow2, GPIO.IN, pull_up_down=GPIO.PUD_DOWN)
-
-GPIO.setup(mainpump, GPIO.OUT)
-GPIO.setup(auxpump1, GPIO.OUT)
-GPIO.setup(solnd1, GPIO.OUT)
-GPIO.setup(solnd2, GPIO.OUT)
-
-GPIO.add_event_detect(flow1, GPIO.RISING, callback=flow1Int)
-GPIO.add_event_detect(flow2, GPIO.FALLING, callback=flow2Int)
-#-----------------------------------------------------------
-variables = {
-    'Var1': {
-        'type': 'numeric',
-        'bind': flowPing1
-    },
-    'Var2': {
-        'type': 'numeric',
-        'bind': flowPing2
-    },
-    'Var3': {
-        'type': 'bool',
-        'bind': pumpOn
-    },
-    'Var4': {
-        'type': 'numeric',
-        'bind': val1
-    },
-    'Var5': {
-        'type': 'numeric',
-        'bind': val2
-    },
-    'PumpDelay': {
-        'type': 'numeric',
-        'bind': pumpDelaySet
-    },
-    'PumpOnTime': {
-        'type': 'numeric',
-        'bind': pumpOnTimeSet
-    },
-    'UserEC': {
-        'type': 'numeric',
-        'bind': userECSet
-    },
-    'UserPH': {
-        'type': 'numeric',
-        'bind': userPHSet
-    },
-    'SysError': {
-        'type': 'bool',
-        'bind': sysErrorSet
-    }
-}
-
-diagnostics = {
-    'CPU Temp': rpi.cpu_temp,
-    'IP Address': rpi.ip_address,
-    'Host': rpi.host_name,
-    'Operating Sytem': rpi.os_name
-    }
-
-device = cloud4rpi.connect(DEVICE_TOKEN)
-
-try:
-    device.declare(variables)
-    device.declare_diag(diagnostics)
-
-    device.publish_config()
-
-    print('Cloud Connected!')
-
-except Exception as e:
-    error = cloud4rpi.get_error_message(e)
-    cloud4rpi.log.exception("ERROR! %s %s", error, sys.exc_info()[0])
-    print('Cloud Connection Error!')
-
-#-----------------------------------------------------------
-# Setup Test
-sysPrimer()
-#-----------------------------------------------------------
-scheduler = BackgroundScheduler()
-scheduler.start()
-
-pump_job = scheduler.add_job(runMainPump, 'interval', seconds = delay * multiplier, id = 'mPump')
-cloudData_job = scheduler.add_job(publishData, 'interval', seconds = cloudInterval)
-cloudDiag_job = scheduler.add_job(publishDiag, 'interval', seconds = cloudInterval)
-
-signal.signal(signal.SIGINT, signal_handler)
-
-GPIO.output(auxpump1, GPIO.LOW)
-
-print('Running')
 
 msg3 = "Timing: "
 msgNew = ""
+if __name__ == "__main__":
 
-while True:
-    msgOut =  (msg1 + msg2 + "\n" + msg3 + msg4)
+    # Set up the i2c port, and initialize the display
+    i2c = busio.I2C(board.SCL, board.SDA)
+    lcd = character_lcd.Character_LCD_RGB_I2C(i2c, lcd_columns, lcd_rows)
 
-    #-------------------------------------------
-    # Read Ultrasonic
-    #-------------------------------------------
+    lcd.backlight = False
 
-    #-------------------------------------------
-    # Read PH
-    #-------------------------------------------
-
-    #-------------------------------------------
-    # Read EC
-    #-------------------------------------------
-
-    #-------------------------------------------
-    # Parse Data
-    #-------------------------------------------
-
-    #-------------------------------------------
-    # Check if pump is running
-    #-------------------------------------------
-
-    #-------------------------------------------
-    # Dose as needed
-    #-------------------------------------------
-
-    #-------------------------------------------
-    # Call user if water levels are low
-    #-------------------------------------------
-    
-    if msgOut != msgNew:
-        lcd.message = msgOut
-
-    if(pumpOn):
-        print("Pump is on!")
-
-        msg1 = "Pump on!"
-    else:
-        msg1 = "Pump off"
-
-        if flowPing2 < 0.8 * flowPing1:
-#            print("Solenoid 2 on, Draining!")
-            GPIO.output(solnd2, GPIO.HIGH)
+    lcd.clear()
+    #------------------------------------------------
+    # Check config file, check if the user wants new values,
+    # save new ones if needed, close file.
+    if os.path.isfile('./config.txt'):
+        print('Loading Config File')
+        lcd.message = "Loading\nConfig File..."
+        time.sleep(readTime)
         
-    msg3 = "Timing: "
-    msg4 = ""
-    msg4 = str(pumpOnTime)
+        file = open('./config.txt', 'r+')
+            
+        delay = int(file.readline())
+        pumpOntime = int(file.readline())
+        usrPH = int(file.readline())
+        usrEC = int(file.readline())
 
-    msgNew = msgOut
+        print('Values previously saved:')
+        print('usrPH: %d, Delay: %d, usrEC: %d' %(usrPH, delay, usrEC))
+
+        lcd.message = "Values previosly\nsaved are: "
+        time.sleep(readTime)
+        lcd.clear()
+
+        lcd.message = "PH Set Level: " + str(usrPH) + "\n" + "EC Set Level: " + str(usrEC)
+        time.sleep(readTime)
+        lcd.clear()
+
+        lcd.message = "Pump On Time: " + str(pumpOnTime) + "\n" + "Cycle Delay: " + str(delay)
+        time.sleep(readTime)
+        lcd.clear()
+
+        lcd.message = "Would you like\nto replace them?"
+        time.sleep(readTime)
+        lcd.clear()
+        lcd.message = "Press Up for Yes\nDown for No"
+        time.sleep(readTime)
+
+        while True:
+            if lcd.up_button:
+                ans = "yes"
+                break
+            elif lcd.down_button:
+                ans = "no"
+                break        
+        lcd.clear()
+            
+        if ans in ['yes', 'y']:
+            file = open('./config.txt', 'w+')
+
+            valSet()
+            
+            file.write('%d\n'%delay)
+            file.write('%d\n'%pumpOnTime)
+            file.write('%d\n' %usrPH)
+            file.write('%d\n' %usrEC)  
+            
+            file.close()
+            
+            print('Saving those files../n')
+            lcd.message = "Saving \nthose files..."
+            time.sleep(readTime)
+            lcd.clear()
+
+    else:
+        print('config file is not present')
+        print('creating new config file')
+
+        lcd.message = "Config file is\nNot present..."
+        time.sleep(readTime)
+        lcd.clear()
+        lcd.message = "Creating new\nconfig file..."
+        time.sleep(readTime)
+        lcd.clear()
+        
+        file = open('./config.txt','w+')
+
+        valSet()
+        
+        file.write('%d\n' %delay)
+        file.write('%d\n' %pumpOnTime)
+        file.write('%d\n' %usrPH)    
+        file.write('%d\n' %usrEC)
+        
+        file.close()
+    #----------------------------------------------------------
+    # Start up pins, set interrupts for flow sensors. 
+    # GPIO Setup
+    GPIO.setup(flow1, GPIO.IN, pull_up_down=GPIO.PUD_DOWN)
+    GPIO.setup(flow2, GPIO.IN, pull_up_down=GPIO.PUD_DOWN)
+
+    GPIO.setup(mainpump, GPIO.OUT)
+    GPIO.setup(auxpump1, GPIO.OUT)
+    GPIO.setup(solnd1, GPIO.OUT)
+    GPIO.setup(solnd2, GPIO.OUT)
+
+    GPIO.add_event_detect(flow1, GPIO.RISING, callback=flow1Int)
+    GPIO.add_event_detect(flow2, GPIO.FALLING, callback=flow2Int)
+    #-----------------------------------------------------------
+    # Setup cloud vairables, and diagnostic variables. Start up cloud interface.
+    variables = {
+        'Var1': {
+            'type': 'numeric',
+            'bind': flowPing1
+        },
+        'Var2': {
+            'type': 'numeric',
+            'bind': flowPing2
+        },
+        'Var3': {
+            'type': 'bool',
+            'bind': pumpOn
+        },
+        'Var4': {
+            'type': 'numeric',
+            'bind': val1
+        },
+        'Var5': {
+            'type': 'numeric',
+            'bind': val2
+        },
+        'PumpDelay': {
+            'type': 'numeric',
+            'bind': pumpDelaySet
+        },
+        'PumpOnTime': {
+            'type': 'numeric',
+            'bind': pumpOnTimeSet
+        },
+        'UserEC': {
+            'type': 'numeric',
+            'bind': userECSet
+        },
+        'UserPH': {
+            'type': 'numeric',
+            'bind': userPHSet
+        },
+        'SysError': {
+            'type': 'bool',
+            'bind': sysErrorSet
+        }
+    }
+
+    diagnostics = {
+        'CPU Temp': rpi.cpu_temp,
+        'IP Address': rpi.ip_address,
+        'Host': rpi.host_name,
+        'Operating Sytem': rpi.os_name
+        }
+
+    device = cloud4rpi.connect(DEVICE_TOKEN)
+
+    try:
+        device.declare(variables)
+        device.declare_diag(diagnostics)
+
+        device.publish_config()
+
+        print('Cloud Connected!')
+
+    except Exception as e:
+        error = cloud4rpi.get_error_message(e)
+        cloud4rpi.log.exception("ERROR! %s %s", error, sys.exc_info()[0])
+        print('Cloud Connection Error!')
+
+    #-----------------------------------------------------------
+    # Test system, throw errors otherwise.
+    #sysPrimer()
+    #-----------------------------------------------------------
+    # Start up thread service. Load up pumps, and cloud interface
+    # to start up every x seconds.
+    scheduler = BackgroundScheduler()
+    scheduler.start()
+
+    pump_job = scheduler.add_job(runMainPump, 'interval', seconds = delay * multiplier, id = 'mPump')
+    cloudData_job = scheduler.add_job(publishData, 'interval', seconds = cloudInterval)
+    cloudDiag_job = scheduler.add_job(publishDiag, 'interval', seconds = cloudInterval)
+
+    signal.signal(signal.SIGINT, signal_handler)
+
+    GPIO.output(auxpump1, GPIO.LOW)
+
+    print('Running')
     
- #   print("!")
+    while True:
+        if sysError:
+            scheduler.pause_job(pump_job)
+        else:
+            scheduler.resume_job(pump_job)
+        
+        msgOut =  (msg1 + msg2 + "\n" + msg3 + msg4)
 
-    time.sleep(senseInterval)
+        #-------------------------------------------
+        # Read Ultrasonic
+        #-------------------------------------------
 
+        #-------------------------------------------
+        # Read PH
+        #-------------------------------------------
 
+        #-------------------------------------------
+        # Read EC
+        #-------------------------------------------
 
+        #-------------------------------------------
+        # Parse Data
+        #-------------------------------------------
 
+        #-------------------------------------------
+        # Check if pump is running
+        #-------------------------------------------
+
+        #-------------------------------------------
+        # Dose as needed
+        #-------------------------------------------
+
+        #-------------------------------------------
+        # Call user if water levels are low
+        #-------------------------------------------
+        
+        if msgOut != msgNew:
+            lcd.message = msgOut
+
+        if(pumpOn):
+            print("Pump is on!")
+
+            msg1 = "Pump on!"
+        else:
+            msg1 = "Pump off"
+
+            if flowPing2 < 0.8 * flowPing1:
+    #            print("Solenoid 2 on, Draining!")
+                GPIO.output(solnd2, GPIO.HIGH)
+            
+        msg3 = "Timing: "
+        msg4 = ""
+        msg4 = str(pumpOnTime)
+
+        msgNew = msgOut
+        
+        time.sleep(senseInterval)
