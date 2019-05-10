@@ -63,7 +63,7 @@ GPIO.setmode(GPIO.BCM)
 
 # Pins for Flow meters(1&2), main pump, etc.
 flow1 = 12
-flow2 = 7
+flow2 = 6
 mainpump = 13
 auxpump1 = 22
 solnd1 = 16
@@ -286,7 +286,7 @@ def ECValue(Volts):
     
 def PHValue(Volts):
     PH = 0.00
-    PH = 24
+    PH = -20(Volts)+32
     return PH
 
 #----------------------------------------------------
