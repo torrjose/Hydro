@@ -495,10 +495,17 @@ def readSenUltra():
 def readSenEC():
     ECData()
     return ECValue(ECVolts)
-    
-def readSenPH():
+
+#gets called 5 times/sense interval
+def phJob():
     PHData()
-    return PHValue(PHVolts)
+    arrj[] PHValue(PHVolts)
+
+#gets called once every sense interval
+def readSenPH():
+    #make phMedian global
+    global: phMedian
+    return phMedian
     
 #reads autodoser level sensors
 def AutoLevelData():
@@ -794,6 +801,7 @@ if __name__ == "__main__":
     pump_job = scheduler.add_job(runMainPump, 'interval', seconds = delay * multiplier, id = 'mPump')
     cloudData_job = scheduler.add_job(publishData, 'interval', seconds = cloudInterval)
     cloudDiag_job = scheduler.add_job(publishDiag, 'interval', seconds = cloudInterval)
+    phSense_jon = scheduler.add_job(phJob, 'interval', seconds = senseInterval/5)
 
     signal.signal(signal.SIGINT, signal_handler)
  
