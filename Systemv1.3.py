@@ -325,8 +325,10 @@ def PHValue(Volts):
     if PHTested[4] == True:
         PHSamples.sort()
         phMedian = median(PHSamples)
+        for i in range(5):
+            PHTested[i] = False
 		
-        return
+    return
 
 
 #----------------------------------------------------
