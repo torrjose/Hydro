@@ -3,6 +3,7 @@ from apscheduler.schedulers.background import BackgroundScheduler
 from email.message import EmailMessage
 from datetime import datetime, timezone
 from tzlocal import get_localzone
+from numpy import median
 import adafruit_character_lcd.character_lcd_rgb_i2c as character_lcd
 import wiringpi
 import smtplib
@@ -97,6 +98,9 @@ PHVolts = 0.0
 ECVolts = 0.0
 PHBits = 0
 ECBits = 0
+PHSamples = [0.0, 0.0, 0.0, 0.0, 0.0]
+PHTested = [False, False, False, False, False]
+phMedian = 0.0
 
 flowPing1 = 0
 flowPing2 = 0
@@ -241,10 +245,30 @@ def Volts(data):
 #reads PH sensor
 def PHData():
     #power PH circuit, poll sensor, turn off PH circuit
+    global PHBits
+    global PHVolts
+    sampleMax = 0
+    sampleMin = 0
+    sample = 0
+    
     GPIO.output(ch1, GPIO.LOW)
-    time.sleep(10)
-    PHBits = analogInput(1)
-    PHVolts = Volts(PHBits)
+    time.sleep(5)
+
+    for i in range(100):
+        sample = analogInput(1)
+        if i==0:
+            sampleMin = sample
+            sampleMax = sample
+        if i>0:
+            if sample < sampleMin:
+                sampleMin = sample
+            if sample > sampleMax:
+                sampleMax = sample
+        time.sleep(0.01)
+        
+    PHBits = (sampleMax + sampleMin)/2
+    PHVolts = Volts(PHBits) +0.14
+    PHVolts = round(PHVolts, 3)
     time.sleep(1)
     GPIO.output(ch1, GPIO.HIGH)
     
@@ -285,9 +309,25 @@ def ECValue(Volts):
     return EC
     
 def PHValue(Volts):
+    global phMedian
     PH = 0.00
-    PH = -20(Volts)+32
-    return PH
+    PH = -20*Volts + 32
+    #return PH
+    #if push comes to shove, uncomment statement line above and comment out all lines below.
+    for i in range(5):
+        if PHTested[i] == False:
+            PHSamples[i] = PH
+            PHTested[i] = True
+            if i == 0:
+                phMedian = PH
+        break
+
+    if PHTested[4] == True:
+        PHSamples.sort()
+        phMedian = median(PHSamples)
+		
+        return
+
 
 #----------------------------------------------------
 #Set functions, which grab values from the cloud
@@ -499,12 +539,12 @@ def readSenEC():
 #gets called 5 times/sense interval
 def phJob():
     PHData()
-    arrj[] PHValue(PHVolts)
+    PHValue(PHVolts)
 
 #gets called once every sense interval
 def readSenPH():
     #make phMedian global
-    global: phMedian
+    global phMedian
     return phMedian
     
 #reads autodoser level sensors
